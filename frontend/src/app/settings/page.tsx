@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { ArrowLeft, Settings2, Mic, Database as DatabaseIcon, SparkleIcon, FlaskConical } from 'lucide-react';
+import { ArrowLeft, Settings2, Mic, Database as DatabaseIcon, SparkleIcon, FlaskConical, Users } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { invoke } from '@tauri-apps/api/core';
 import { motion } from 'framer-motion';
@@ -19,6 +19,7 @@ const TABS = [
   { value: 'general', label: 'General', icon: Settings2 },
   { value: 'recording', label: 'Recordings', icon: Mic },
   { value: 'Transcriptionmodels', label: 'Transcription', icon: DatabaseIcon },
+  { value: 'speakers', label: 'Speakers (VibeVoice)', icon: Users },
   { value: 'summaryModels', label: 'Summary', icon: SparkleIcon },
   { value: 'beta', label: 'Beta', icon: FlaskConical }
 ] as const;
@@ -121,6 +122,8 @@ export default function SettingsPage() {
                 transcriptModelConfig={transcriptModelConfig}
                 setTranscriptModelConfig={setTranscriptModelConfig}
               />
+            </TabsContent>
+            <TabsContent value="speakers">
               <VibeVoiceSettings />
             </TabsContent>
             <TabsContent value="summaryModels">

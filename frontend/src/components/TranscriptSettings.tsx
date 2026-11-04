@@ -123,6 +123,8 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                                 <SelectContent>
                                     <SelectItem value="parakeet">⚡ Parakeet (Recommended - Real-time / Accurate)</SelectItem>
                                     <SelectItem value="localWhisper">🏠 Local Whisper (High Accuracy)</SelectItem>
+                                    {/* VibeVoice is post-meeting only (Import & Enhance); configured in Settings > Speakers */}
+                                    <SelectItem value="__vibevoice_info" disabled>🗣️ VibeVoice: post-meeting speaker labels only (set up in Speakers tab, use via Enhance)</SelectItem>
                                     {/* <SelectItem value="deepgram">☁️ Deepgram (Backup)</SelectItem>
                                     <SelectItem value="elevenLabs">☁️ ElevenLabs</SelectItem>
                                     <SelectItem value="groq">☁️ Groq</SelectItem>

@@ -19,13 +19,6 @@ env:
   MACOSX_DEPLOYMENT_TARGET: "13.0"
 
 jobs:
-  # Diagnostic: shows whether any hosted runner is assigned to this fork (vs. macOS only).
-  runner-probe:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - run: echo "Linux runner assigned at $(date -u)"
-
   build:
     name: Build macOS (Apple Silicon)
     # macos-latest and macos-15 jobs sat unassigned until GitHub cancelled them after 15 min.

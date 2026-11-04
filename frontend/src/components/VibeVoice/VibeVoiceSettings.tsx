@@ -64,11 +64,13 @@ export function VibeVoiceSettings() {
   const hotwordCount = parseHotwords(hotwordsText).length;
 
   return (
-    <div className="mt-6 rounded-lg border border-gray-200 bg-white p-4 space-y-4">
+    <div className="mt-6 max-w-3xl rounded-lg border border-gray-200 bg-white p-4 space-y-4">
       <div>
         <h3 className="text-base font-semibold">VibeVoice (local server) — post-meeting speaker labels</h3>
         <p className="text-sm text-muted-foreground">
-          Used only by Import and Enhance, never for live transcription. Requires the local sidecar on an Apple
+          Gives each line of a finished meeting a speaker label (Speaker 0, Speaker 1, …) that you can rename.
+          Use it from a meeting&apos;s <strong>Enhance</strong> button or when importing audio; it is never used for live
+          transcription. Requires the local sidecar on an Apple
           Silicon Mac: <code className="rounded bg-gray-100 px-1">{VIBEVOICE_START_COMMAND}</code>
         </p>
       </div>
