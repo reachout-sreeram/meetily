@@ -21,7 +21,8 @@ env:
 jobs:
   build:
     name: Build macOS (Apple Silicon)
-    runs-on: macos-latest
+    # Pinned: macos-latest (macOS 26 image) jobs sat unassigned until GitHub cancelled them.
+    runs-on: macos-15
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
