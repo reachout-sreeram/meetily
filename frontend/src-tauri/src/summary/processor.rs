@@ -217,7 +217,7 @@ fn translation_system_prompt(target_language: &str) -> String {
 
 fn build_chunk_summary_user_prompt(chunk: &str) -> String {
     format!(
-        "{ENGLISH_BASE_SUMMARY_INSTRUCTION}\n\nProvide a concise but comprehensive summary of the following transcript chunk. Capture all key points, decisions, action items, and mentioned individuals. Do not include reasoning, self-correction, or meta-commentary — output only the summary content.\n\n<transcript_chunk>\n{chunk}\n</transcript_chunk>"
+        "{ENGLISH_BASE_SUMMARY_INSTRUCTION}\n\nProvide a concise but comprehensive summary of the following transcript chunk. Capture all key points, decisions, action items, and mentioned individuals. If lines are prefixed with speaker names (e.g. `Priya: ...`), keep who said what and who owns each action item. Do not include reasoning, self-correction, or meta-commentary — output only the summary content.\n\n<transcript_chunk>\n{chunk}\n</transcript_chunk>"
     )
 }
 
@@ -242,6 +242,7 @@ fn build_final_report_system_prompt(
 6. Output **only** the completed Markdown report.
 7. Do not include reasoning, thinking, self-correction, decision strategy, or any meta-commentary sections — output only the completed Markdown report.
 8. If unsure about something, omit it.
+9. Transcript lines may be prefixed with a speaker name (e.g. `[01:23] Priya: ...`). When present, use these names to attribute statements, decisions and action-item owners. Generic labels such as "Speaker 1" are placeholders, not real names: keep them as-is and never invent names.
 
 **SECTION-SPECIFIC INSTRUCTIONS:**
 {section_instructions}
@@ -916,5 +917,13 @@ mod tests {
         assert_eq!(cleaned.markdown, markdown);
         assert!(!cleaned.reasoning_stripped);
         assert_eq!(clean_llm_markdown_detailed(markdown).markdown, markdown);
+    }
+
+    #[test]
+    fn prompts_ask_for_speaker_attribution() {
+        let final_prompt = build_final_report_system_prompt("Fill", "# Title");
+        assert!(final_prompt.contains("action-item owners"));
+        assert!(final_prompt.contains("never invent names"));
+        assert!(build_chunk_summary_user_prompt("x").contains("who owns each action item"));
     }
 }

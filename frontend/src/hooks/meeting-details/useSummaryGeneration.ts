@@ -18,6 +18,7 @@ import {
   readCachedDetectedSummaryLanguage,
 } from '@/lib/summary-language-preferences';
 import { parseSummaryContent, readSummaryMetadata } from '@/lib/summary-content';
+import { formatTranscriptLine } from '@/lib/transcript-format';
 
 async function resolveSummaryLanguage(
   meetingId: string,
@@ -434,18 +435,9 @@ export function useSummaryGeneration({
   }, []);
 
   const buildSummaryTranscriptPayload = useCallback((allTranscripts: Transcript[]) => {
-    const formatTime = (seconds: number | undefined, fallbackTimestamp: string): string => {
-      if (seconds === undefined) {
-        return fallbackTimestamp;
-      }
-      const totalSecs = Math.floor(seconds);
-      return `[${Math.floor(totalSecs / 60).toString().padStart(2, '0')}:${(totalSecs % 60).toString().padStart(2, '0')}]`;
-    };
-
     return {
-      transcriptText: allTranscripts
-        .map((transcript) => `${formatTime(transcript.audio_start_time, transcript.timestamp)} ${transcript.text}`)
-        .join('\n'),
+      // Lines carry "Name:" prefixes for speaker-labelled (VibeVoice) meetings, using renamed names.
+      transcriptText: allTranscripts.map(formatTranscriptLine).join('\n'),
       transcriptTexts: allTranscripts.map((transcript) => transcript.text),
     };
   }, []);
