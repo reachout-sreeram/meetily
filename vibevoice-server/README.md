@@ -116,6 +116,22 @@ python -m venv .venv-test && .venv-test/bin/pip install -r requirements-dev.txt
 .venv-test/bin/python -m pytest tests
 ```
 
+### End-to-end tests without a Mac (fake model)
+
+`scripts/dev_fake_server.py` runs the real HTTP layer and ffmpeg conversion with a canned
+multi-speaker "model". Use it for UI work on any OS, or to run the Rust integration tests:
+
+```bash
+python scripts/dev_fake_server.py --port 18765 --delay 2 &
+cd ../frontend/src-tauri
+VIBEVOICE_TEST_URL=http://127.0.0.1:18765 cargo test --test vibevoice_sidecar_integration --test vibevoice_app_flow -- --ignored --test-threads=1
+```
+
+`vibevoice_app_flow` drives the real `start_retranscription` and `start_import` paths through
+Tauri's mock runtime. It checks the "server not running" message, saving speaker labels,
+renaming, and that a database created before this feature still opens old meetings.
+Point `VIBEVOICE_TEST_URL` at the real server on a Mac to run the same tests with the model.
+
 ## License
 
 The sidecar code is MIT, the same as Meetily. VibeVoice-ASR is © Microsoft, MIT license.
