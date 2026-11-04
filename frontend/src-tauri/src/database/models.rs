@@ -35,6 +35,9 @@ pub struct Transcript {
     pub audio_start_time: Option<f64>,
     pub audio_end_time: Option<f64>,
     pub duration: Option<f64>,
+    // Speaker id from VibeVoice re-transcription ("0", "1", ...). NULL for other engines.
+    #[sqlx(default)]
+    pub speaker: Option<String>,
 }
 
 #[derive(Debug, Clone, FromRow, Serialize, Deserialize)]

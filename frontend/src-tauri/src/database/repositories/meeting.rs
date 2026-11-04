@@ -82,16 +82,27 @@ impl MeetingsRepository {
 
             transaction.commit().await?;
 
+            // Speaker names (VibeVoice). Empty map for meetings without speakers.
+            let speaker_names = if transcripts.iter().any(|t| t.speaker.is_some()) {
+                crate::vibevoice::speakers::load_names(pool, meeting_id)
+                    .await
+                    .unwrap_or_default()
+            } else {
+                Default::default()
+            };
+
             // Convert Transcript to MeetingTranscript
             let meeting_transcripts = transcripts
                 .into_iter()
                 .map(|t| MeetingTranscript {
+                    speaker_name: crate::vibevoice::speakers::resolve_name(t.speaker.as_deref(), &speaker_names),
                     id: t.id,
                     text: t.transcript,
                     timestamp: t.timestamp,
                     audio_start_time: t.audio_start_time,
                     audio_end_time: t.audio_end_time,
                     duration: t.duration,
+                    speaker: t.speaker,
                 })
                 .collect::<Vec<_>>();
 

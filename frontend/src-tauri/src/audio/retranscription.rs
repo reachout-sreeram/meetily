@@ -103,10 +103,14 @@ pub async fn start_retranscription<R: Runtime>(
     RETRANSCRIPTION_CANCELLED.store(false, Ordering::SeqCst);
 
     let use_parakeet = provider.as_deref() == Some("parakeet");
+    let use_vibevoice = crate::vibevoice::is_vibevoice_provider(provider.as_deref());
     let result = run_retranscription(app.clone(), meeting_id.clone(), meeting_folder_path, language, model, provider).await;
 
-    // Unload the engine after the batch job (success, failure, or cancellation)
-    super::common::unload_engine_after_batch(use_parakeet).await;
+    // Unload the engine after the batch job (success, failure, or cancellation).
+    // VibeVoice runs in the sidecar, which unloads its own model when idle.
+    if !use_vibevoice {
+        super::common::unload_engine_after_batch(use_parakeet).await;
+    }
 
     // Guard will automatically clear flag on drop
     // No need for manual: RETRANSCRIPTION_IN_PROGRESS.store(false, Ordering::SeqCst);
@@ -180,6 +184,11 @@ async fn run_retranscription<R: Runtime>(
 ) -> Result<RetranscriptionResult> {
     let folder_path = PathBuf::from(&meeting_folder_path);
     let audio_path = find_audio_file(&folder_path)?;
+
+    // VibeVoice (local sidecar): speaker-labelled post-meeting transcription.
+    if crate::vibevoice::is_vibevoice_provider(provider.as_deref()) {
+        return run_vibevoice_retranscription(&app, meeting_id, &folder_path, &audio_path).await;
+    }
 
     // Determine which provider to use (default to whisper)
     let use_parakeet = provider.as_deref() == Some("parakeet");
@@ -500,6 +509,66 @@ async fn run_retranscription<R: Runtime>(
 }
 
 /// Emit progress event
+/// Retranscribe with the VibeVoice sidecar (speaker labels + timestamps).
+/// Skips local decoding/VAD: the sidecar reads the file and does its own segmentation.
+async fn run_vibevoice_retranscription<R: Runtime>(
+    app: &AppHandle<R>,
+    meeting_id: String,
+    folder_path: &Path,
+    audio_path: &Path,
+) -> Result<RetranscriptionResult> {
+    info!("Starting VibeVoice retranscription for meeting {}", meeting_id);
+    emit_progress(app, &meeting_id, "transcribing", 5, "Checking VibeVoice server...");
+    let ready = crate::vibevoice::ensure_server_ready(app).await?;
+
+    let output = crate::vibevoice::transcribe_file(
+        app,
+        Some(&meeting_id),
+        audio_path,
+        Some(ready),
+        |pct, msg| emit_progress(app, &meeting_id, "transcribing", pct, msg),
+        &RETRANSCRIPTION_CANCELLED,
+        "Retranscription cancelled",
+    )
+    .await?;
+
+    if RETRANSCRIPTION_CANCELLED.load(Ordering::SeqCst) {
+        return Err(anyhow!("Retranscription cancelled"));
+    }
+
+    emit_progress(app, &meeting_id, "saving", 85, "Saving speaker-labelled transcripts...");
+    let app_state = app
+        .try_state::<AppState>()
+        .ok_or_else(|| anyhow!("App state not available"))?;
+    crate::vibevoice::store::replace_meeting_transcripts(
+        app_state.db_manager.pool(),
+        &meeting_id,
+        &output.segments,
+    )
+    .await?;
+
+    emit_progress(app, &meeting_id, "saving", 90, "Writing transcript files...");
+    if let Err(e) = crate::vibevoice::store::write_transcripts_json(folder_path, &output.segments) {
+        warn!("Failed to write transcripts.json: {}", e);
+    }
+    let audio_filename = audio_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("audio.mp4")
+        .to_string();
+    if let Err(e) = write_retranscription_metadata(folder_path, &meeting_id, output.duration_seconds, &audio_filename) {
+        warn!("Failed to update metadata.json: {}", e);
+    }
+
+    emit_progress(app, &meeting_id, "complete", 100, "Retranscription complete");
+    Ok(RetranscriptionResult {
+        meeting_id,
+        segments_count: output.segments.len(),
+        duration_seconds: output.duration_seconds,
+        language: None,
+    })
+}
+
 fn emit_progress<R: Runtime>(
     app: &AppHandle<R>,
     meeting_id: &str,

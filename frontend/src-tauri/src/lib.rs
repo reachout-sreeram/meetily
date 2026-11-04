@@ -53,6 +53,7 @@ pub mod state;
 pub mod summary;
 pub mod tray;
 pub mod utils;
+pub mod vibevoice;
 pub mod whisper_engine;
 
 use audio::{list_audio_devices, AudioDevice, trigger_audio_permission};
@@ -824,6 +825,11 @@ pub fn run() {
             audio::retranscription::start_retranscription_command,
             audio::retranscription::cancel_retranscription_command,
             audio::retranscription::is_retranscription_in_progress_command,
+            vibevoice::commands::vibevoice_get_settings,
+            vibevoice::commands::vibevoice_save_settings,
+            vibevoice::commands::vibevoice_health_check,
+            vibevoice::commands::vibevoice_get_meeting_speakers,
+            vibevoice::commands::vibevoice_rename_speaker,
             // Import audio commands
             audio::import::select_and_validate_audio_command,
             audio::import::validate_audio_file_command,

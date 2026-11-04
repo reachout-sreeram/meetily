@@ -267,6 +267,7 @@ pub async fn start_import<R: Runtime>(
     IMPORT_CANCELLED.store(false, Ordering::SeqCst);
 
     let use_parakeet = provider.as_deref() == Some("parakeet");
+    let use_vibevoice = crate::vibevoice::is_vibevoice_provider(provider.as_deref());
     let result = run_import(
         app.clone(),
         source_path,
@@ -277,8 +278,11 @@ pub async fn start_import<R: Runtime>(
     )
     .await;
 
-    // Unload the engine after the batch job (success, failure, or cancellation)
-    super::common::unload_engine_after_batch(use_parakeet).await;
+    // Unload the engine after the batch job (success, failure, or cancellation).
+    // VibeVoice runs in the sidecar, which unloads its own model when idle.
+    if !use_vibevoice {
+        super::common::unload_engine_after_batch(use_parakeet).await;
+    }
 
     // Guard will automatically clear flag on drop
     // No need for manual: IMPORT_IN_PROGRESS.store(false, Ordering::SeqCst);
@@ -332,6 +336,14 @@ async fn run_import<R: Runtime>(
     // Determine which provider to use (default to whisper)
     let use_parakeet = provider.as_deref() == Some("parakeet");
 
+    // VibeVoice: fail fast (before copying) if the local sidecar is not running.
+    let vibevoice_ready = if crate::vibevoice::is_vibevoice_provider(provider.as_deref()) {
+        emit_progress(&app, "copying", 2, "Checking VibeVoice server...");
+        Some(crate::vibevoice::ensure_server_ready(&app).await?)
+    } else {
+        None
+    };
+
     emit_progress(&app, "copying", 5, "Creating meeting folder...");
 
     // Check for cancellation
@@ -369,6 +381,15 @@ async fn run_import<R: Runtime>(
         // Cleanup: remove the meeting folder
         let _ = std::fs::remove_dir_all(&meeting_folder);
         return Err(anyhow!("Import cancelled"));
+    }
+
+    if let Some(ready) = vibevoice_ready {
+        let result =
+            run_vibevoice_import(&app, &title, &meeting_folder, &dest_path, &dest_filename, ready).await;
+        if result.is_err() {
+            let _ = std::fs::remove_dir_all(&meeting_folder);
+        }
+        return result;
     }
 
     emit_progress(&app, "decoding", 15, "Decoding audio file...");
@@ -675,6 +696,74 @@ async fn run_import<R: Runtime>(
 }
 
 /// Emit progress event
+/// Import path for VibeVoice: the sidecar transcribes the copied file (speaker labels +
+/// timestamps), then the meeting is created with speaker-labelled transcripts.
+async fn run_vibevoice_import<R: Runtime>(
+    app: &AppHandle<R>,
+    title: &str,
+    meeting_folder: &Path,
+    dest_path: &Path,
+    dest_filename: &str,
+    ready: (crate::vibevoice::client::VibeVoiceClient, crate::vibevoice::settings::VibeVoiceSettings),
+) -> Result<ImportResult> {
+    let output = crate::vibevoice::transcribe_file(
+        app,
+        None,
+        dest_path,
+        Some(ready),
+        |pct, msg| emit_progress(app, "transcribing", pct, msg),
+        &IMPORT_CANCELLED,
+        "Import cancelled",
+    )
+    .await?;
+    if IMPORT_CANCELLED.load(Ordering::SeqCst) {
+        return Err(anyhow!("Import cancelled"));
+    }
+
+    emit_progress(app, "saving", 85, "Creating meeting...");
+    let app_state = app
+        .try_state::<AppState>()
+        .ok_or_else(|| anyhow!("App state not available"))?;
+    let pool = app_state.db_manager.pool();
+    let meeting_id = create_meeting_with_transcripts(
+        pool,
+        title,
+        &[],
+        meeting_folder.to_string_lossy().to_string(),
+    )
+    .await?;
+    if let Err(e) =
+        crate::vibevoice::store::replace_meeting_transcripts(pool, &meeting_id, &output.segments).await
+    {
+        // Don't leave an empty meeting behind.
+        let _ = sqlx::query("DELETE FROM meetings WHERE id = ?").bind(&meeting_id).execute(pool).await;
+        return Err(e);
+    }
+
+    emit_progress(app, "saving", 90, "Writing transcript files...");
+    if let Err(e) = crate::vibevoice::store::write_transcripts_json(meeting_folder, &output.segments) {
+        warn!("Failed to write transcripts.json: {}", e);
+    }
+    if let Err(e) = write_import_metadata(
+        meeting_folder,
+        &meeting_id,
+        title,
+        output.duration_seconds,
+        dest_filename,
+        "import",
+    ) {
+        warn!("Failed to write metadata.json: {}", e);
+    }
+
+    emit_progress(app, "complete", 100, "Import complete");
+    Ok(ImportResult {
+        meeting_id,
+        title: title.to_string(),
+        segments_count: output.segments.len(),
+        duration_seconds: output.duration_seconds,
+    })
+}
+
 fn emit_progress<R: Runtime>(app: &AppHandle<R>, stage: &str, progress: u32, message: &str) {
     let _ = app.emit(
         "import-progress",

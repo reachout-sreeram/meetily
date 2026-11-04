@@ -137,6 +137,12 @@ pub struct MeetingTranscript {
     pub audio_end_time: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duration: Option<f64>,
+    /// Raw speaker id (VibeVoice only), e.g. "0".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub speaker: Option<String>,
+    /// Display name for `speaker`: the per-meeting rename or "Speaker N".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub speaker_name: Option<String>,
 }
 
 /// Meeting metadata without transcripts (for pagination)
@@ -868,16 +874,27 @@ pub async fn api_get_meeting_transcripts<R: Runtime>(
                 total_count
             );
 
+            // Speaker names (VibeVoice). Empty map for meetings without speakers.
+            let speaker_names = if transcripts.iter().any(|t| t.speaker.is_some()) {
+                crate::vibevoice::speakers::load_names(pool, &meeting_id)
+                    .await
+                    .unwrap_or_default()
+            } else {
+                Default::default()
+            };
+
             // Convert Transcript to MeetingTranscript
             let meeting_transcripts = transcripts
                 .into_iter()
                 .map(|t| MeetingTranscript {
+                    speaker_name: crate::vibevoice::speakers::resolve_name(t.speaker.as_deref(), &speaker_names),
                     id: t.id,
                     text: t.transcript,
                     timestamp: t.timestamp,
                     audio_start_time: t.audio_start_time,
                     audio_end_time: t.audio_end_time,
                     duration: t.duration,
+                    speaker: t.speaker,
                 })
                 .collect::<Vec<_>>();
 
