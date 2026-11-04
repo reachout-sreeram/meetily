@@ -1,0 +1,6 @@
+# Apple Silicon (macOS arm64) only: mlx / mlx-audio need Metal.
+mlx-audio>=0.6.4
+fastapi>=0.110
+uvicorn>=0.29
+python-multipart>=0.0.9
+numpy>=1.26
