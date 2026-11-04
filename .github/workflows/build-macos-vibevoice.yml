@@ -14,6 +14,9 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
+  # Without this, native code targets the runner's own macOS (26.x) and the app won't
+  # launch on older systems. Meetily needs macOS 13+ (ScreenCaptureKit).
+  MACOSX_DEPLOYMENT_TARGET: "13.0"
 
 jobs:
   build:
@@ -46,6 +49,18 @@ jobs:
       - name: Install frontend dependencies
         working-directory: frontend
         run: pnpm install --frozen-lockfile
+
+      # The runner now ships OpenSSL 4, which the pinned llama.cpp (cpp-httplib) does not
+      # compile against. Point CMake's FindOpenSSL at OpenSSL 3 instead.
+      - name: Use OpenSSL 3 for native builds
+        run: |
+          brew list openssl@3 >/dev/null 2>&1 || brew install openssl@3
+          OSSL3="$(brew --prefix openssl@3)"
+          brew unlink openssl@4 >/dev/null 2>&1 || true
+          echo "OPENSSL_ROOT_DIR=$OSSL3" >> "$GITHUB_ENV"
+          echo "OPENSSL_DIR=$OSSL3" >> "$GITHUB_ENV"
+          echo "PKG_CONFIG_PATH=$OSSL3/lib/pkgconfig" >> "$GITHUB_ENV"
+          "$OSSL3/bin/openssl" version
 
       - name: Build llama-helper sidecar (Metal)
         run: |
