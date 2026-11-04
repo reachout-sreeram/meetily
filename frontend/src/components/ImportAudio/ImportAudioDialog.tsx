@@ -37,6 +37,7 @@ import { useRouter } from 'next/navigation';
 import { useSidebar } from '../Sidebar/SidebarProvider';
 import { LANGUAGES } from '@/constants/languages';
 import { useTranscriptionModels, ModelOption } from '@/hooks/useTranscriptionModels';
+import { VibeVoiceModelHint, useVibeVoiceWarnings } from '@/components/VibeVoice';
 
 
 interface ImportAudioDialogProps {
@@ -93,6 +94,9 @@ export function ImportAudioDialog({
     fetchModels,
     resetSelection,
   } = useTranscriptionModels(transcriptModelConfig);
+
+  // Toast chunking/truncation warnings from the VibeVoice sidecar.
+  useVibeVoiceWarnings(open);
 
   const handleImportComplete = useCallback((result: ImportResult) => {
     toast.success(`Import complete! ${result.segments_count} segments created.`);
@@ -169,7 +173,9 @@ export function ImportAudioDialog({
     const name = selectedModelKey.slice(colonIndex + 1);
     return availableModels.find((m) => m.provider === provider && m.name === name);
   }, [selectedModelKey, availableModels]);
-  const isParakeetModel = selectedModel?.provider === 'parakeet';
+  const isVibeVoiceModel = selectedModel?.provider === 'vibevoice';
+  // Parakeet and VibeVoice both auto-detect the language.
+  const isParakeetModel = selectedModel?.provider === 'parakeet' || isVibeVoiceModel;
 
   useEffect(() => {
     if (isParakeetModel && selectedLang !== 'auto') {
@@ -369,7 +375,7 @@ export function ImportAudioDialog({
                             <span className="text-sm font-medium">Language</span>
                           </div>
                           <p className="text-xs text-muted-foreground">
-                            Language selection isn't supported for Parakeet. It always uses automatic detection.
+                            Language selection isn't supported for {isVibeVoiceModel ? 'VibeVoice' : 'Parakeet'}. It always uses automatic detection.
                           </p>
                         </div>
                       )}
@@ -395,11 +401,12 @@ export function ImportAudioDialog({
                                   key={`${model.provider}:${model.name}`}
                                   value={`${model.provider}:${model.name}`}
                                 >
-                                  {model.displayName} ({Math.round(model.size_mb)} MB)
+                                  {model.displayName}{model.size_mb > 0 ? ` (${Math.round(model.size_mb)} MB)` : ''}
                                 </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
+                          {isVibeVoiceModel && <VibeVoiceModelHint />}
                         </div>
                       )}
                     </div>

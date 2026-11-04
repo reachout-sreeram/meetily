@@ -16,6 +16,9 @@ export interface Transcript {
   audio_start_time?: number; // Seconds from recording start (e.g., 125.3)
   audio_end_time?: number;   // Seconds from recording start (e.g., 128.6)
   duration?: number;          // Segment duration in seconds (e.g., 3.3)
+  // Speaker separation (VibeVoice post-meeting transcription only)
+  speaker?: string;           // Raw speaker id, e.g. "0"
+  speaker_name?: string;      // Display name: per-meeting rename or "Speaker 0"
 }
 
 export interface TranscriptUpdate {
@@ -141,4 +144,5 @@ export interface TranscriptSegmentData {
   endTime?: number; // audio_end_time in seconds
   text: string;
   confidence?: number;
+  speaker?: string; // Display name (VibeVoice only)
 }

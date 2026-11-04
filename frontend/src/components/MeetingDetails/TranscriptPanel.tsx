@@ -4,6 +4,7 @@ import { Transcript, TranscriptSegmentData } from '@/types';
 import { TranscriptView } from '@/components/TranscriptView';
 import { VirtualizedTranscriptView } from '@/components/VirtualizedTranscriptView';
 import { TranscriptButtonGroup } from './TranscriptButtonGroup';
+import { SpeakerRenamePanel } from '@/components/VibeVoice';
 import { useMemo } from 'react';
 
 interface TranscriptPanelProps {
@@ -61,6 +62,7 @@ export function TranscriptPanel({
       endTime: t.audio_end_time,
       text: t.text,
       confidence: t.confidence,
+      speaker: t.speaker_name,
     }));
   }, [transcripts, usePagination, segments]);
 
@@ -77,6 +79,11 @@ export function TranscriptPanel({
           onRefetchTranscripts={onRefetchTranscripts}
         />
       </div>
+
+      {/* Speaker names (only shown for meetings transcribed with VibeVoice) */}
+      {meetingId && !isRecording && (
+        <SpeakerRenamePanel meetingId={meetingId} refreshKey={convertedSegments} onRenamed={onRefetchTranscripts} />
+      )}
 
       {/* Transcript content - use virtualized view for better performance */}
       <div className="flex-1 overflow-hidden pb-4">

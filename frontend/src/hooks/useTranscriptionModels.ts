@@ -8,11 +8,18 @@ export interface RawModelInfo {
 }
 
 export interface ModelOption {
-  provider: 'whisper' | 'parakeet';
+  provider: 'whisper' | 'parakeet' | 'vibevoice';
   name: string;
   displayName: string;
   size_mb: number;
 }
+
+export const VIBEVOICE_MODEL_OPTION: ModelOption = {
+  provider: 'vibevoice',
+  name: 'vibevoice-asr',
+  displayName: '🗣️ VibeVoice (local server, speaker labels)',
+  size_mb: 0,
+};
 
 interface TranscriptModelConfig {
   provider?: string;
@@ -76,6 +83,11 @@ export function useTranscriptionModels(transcriptModelConfig: TranscriptModelCon
     } catch (err) {
       console.error('Failed to fetch Parakeet models:', err);
     }
+
+    // VibeVoice runs in the local sidecar (vibevoice-server/). It is offered only here, i.e. in
+    // Import & Enhance (post-meeting), never for live transcription. Server availability is
+    // checked when the job starts.
+    allModels.push(VIBEVOICE_MODEL_OPTION);
 
     setAvailableModels(allModels);
 

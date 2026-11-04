@@ -22,6 +22,7 @@ import { toast } from 'sonner';
 import { useConfig } from '@/contexts/ConfigContext';
 import { LANGUAGES } from '@/constants/languages';
 import { useTranscriptionModels, ModelOption } from '@/hooks/useTranscriptionModels';
+import { VibeVoiceModelHint, useVibeVoiceWarnings } from '@/components/VibeVoice';
 import Analytics from '@/lib/analytics';
 
 interface RetranscribeDialogProps {
@@ -74,6 +75,9 @@ export function RetranscribeDialog({
     resetSelection,
   } = useTranscriptionModels(transcriptModelConfig);
 
+  // Toast chunking/truncation warnings from the VibeVoice sidecar.
+  useVibeVoiceWarnings(open);
+
   // Stable refs for callbacks to avoid listener re-registration
   const onCompleteRef = useRef(onComplete);
   const onOpenChangeRef = useRef(onOpenChange);
@@ -92,7 +96,9 @@ export function RetranscribeDialog({
     const name = selectedModelKey.slice(colonIndex + 1);
     return availableModels.find(m => m.provider === provider && m.name === name);
   }, [selectedModelKey, availableModels]);
-  const isParakeetModel = selectedModelDetails?.provider === 'parakeet';
+  const isVibeVoiceModel = selectedModelDetails?.provider === 'vibevoice';
+  // Parakeet and VibeVoice both auto-detect the language.
+  const isParakeetModel = selectedModelDetails?.provider === 'parakeet' || isVibeVoiceModel;
 
   useEffect(() => {
     if (isParakeetModel && selectedLang !== 'auto') {
@@ -330,7 +336,7 @@ export function RetranscribeDialog({
                   <span className="text-sm font-medium">Language</span>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Language selection isn't supported for Parakeet. It always uses automatic detection.
+                  Language selection isn't supported for {isVibeVoiceModel ? 'VibeVoice' : 'Parakeet'}. It always uses automatic detection.
                 </p>
               </div>
             )
@@ -349,7 +355,7 @@ export function RetranscribeDialog({
                 <SelectContent>
                   {availableModels.map((model) => (
                     <SelectItem key={`${model.provider}:${model.name}`} value={`${model.provider}:${model.name}`}>
-                      {model.displayName} ({Math.round(model.size_mb)} MB)
+                      {model.displayName}{model.size_mb > 0 ? ` (${Math.round(model.size_mb)} MB)` : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -357,6 +363,7 @@ export function RetranscribeDialog({
               <p className="text-xs text-muted-foreground">
                 Choose a transcription model
               </p>
+              {isVibeVoiceModel && <VibeVoiceModelHint />}
             </div>
           )}
 

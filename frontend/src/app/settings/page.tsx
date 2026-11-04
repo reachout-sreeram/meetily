@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { invoke } from '@tauri-apps/api/core';
 import { motion } from 'framer-motion';
 import { TranscriptSettings } from '@/components/TranscriptSettings';
+import { VibeVoiceSettings } from '@/components/VibeVoice';
 import { RecordingSettings } from '@/components/RecordingSettings';
 import { PreferenceSettings } from '@/components/PreferenceSettings';
 import { SummaryModelSettings } from '@/components/SummaryModelSettings';
@@ -120,6 +121,7 @@ export default function SettingsPage() {
                 transcriptModelConfig={transcriptModelConfig}
                 setTranscriptModelConfig={setTranscriptModelConfig}
               />
+              <VibeVoiceSettings />
             </TabsContent>
             <TabsContent value="summaryModels">
               <SummaryModelSettings />
