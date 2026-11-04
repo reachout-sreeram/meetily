@@ -1,0 +1,83 @@
+name: "Build macOS DMG (VibeVoice branch, unsigned)"
+
+# Fork-friendly build of feature/vibevoice-asr: no Apple certificate, no updater key needed.
+# The app is ad-hoc signed only, so after installing run:
+#   xattr -dr com.apple.quarantine /Applications/meetily.app
+on:
+  push:
+    branches: [feature/vibevoice-asr]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build macOS (Apple Silicon)
+    runs-on: macos-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+          key: macos-vibevoice-aarch64
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Build llama-helper sidecar (Metal)
+        run: |
+          cargo build --release -p llama-helper --features metal
+          mkdir -p frontend/src-tauri/binaries
+          cp target/release/llama-helper frontend/src-tauri/binaries/llama-helper-aarch64-apple-darwin
+
+      - name: Build app and DMG (unsigned, no updater artifacts)
+        working-directory: frontend
+        run: |
+          pnpm tauri build --target aarch64-apple-darwin --bundles app,dmg \
+            --config '{"bundle":{"createUpdaterArtifacts":false}}'
+
+      - name: Package VibeVoice sidecar
+        run: |
+          mkdir -p dist
+          cp target/aarch64-apple-darwin/release/bundle/dmg/*.dmg dist/
+          zip -r dist/vibevoice-server.zip vibevoice-server -x 'vibevoice-server/.venv/*' 'vibevoice-server/tests/*' '*/__pycache__/*'
+          cat > dist/INSTALL.txt <<'TXT'
+          1. Open the .dmg and drag meetily.app to Applications.
+          2. This build is not notarized. Before the first launch run:
+               xattr -dr com.apple.quarantine /Applications/meetily.app
+          3. For VibeVoice speaker labels: unzip vibevoice-server.zip, then
+               brew install ffmpeg      (once)
+               cd vibevoice-server && ./start.sh
+             Keep that terminal open. In Meetily: Settings > Transcription > VibeVoice > Test connection.
+          4. On a meeting: Enhance > "VibeVoice (local server, speaker labels)".
+          TXT
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: meetily-vibevoice-macos-arm64
+          path: dist/*
+          retention-days: 14
